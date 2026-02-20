@@ -1,0 +1,37 @@
+{
+    "discord_token": "YOUR_DISCORD_BOT_TOKEN",
+    "tiktok_username": "your_tiktok_username",
+    "admin_users": [],
+    "admin_roles": [],
+    "features": {
+        "live_notifications": true,
+        "livesummary": true,
+        "finalsummary": true,
+        "video_notifications": true,
+        "daily_summary": true,
+        "battery_warnings": true,
+        "shutdown_alerts": true
+    },
+    "intervals": {
+        "offline": 10,
+        "live_summary": 10,
+        "video": 15
+    },
+    "daily_summary": {
+        "time_gmt": "23:00"
+    },
+    "channels": {
+        "live": null,
+        "livesummary": null,
+        "finalsummary": null,
+        "videos": null,
+        "summary": null
+    },
+    "roles": {
+        "live": null,
+        "livesummary": null,
+        "finalsummary": null,
+        "videos": null,
+        "summary": null
+    }
+}
