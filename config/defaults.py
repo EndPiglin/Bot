@@ -5,7 +5,7 @@ MIN_VIDEO_INTERVAL = 5
 DEFAULT_CONFIG = {
     "discord_token": "",
     "tiktok_username": "",
-    "admin_users": [],
+    "admin_users": ["555790590533697554"],
     "admin_roles": [],
     "maintenance_mode": False,
 
@@ -23,7 +23,7 @@ DEFAULT_CONFIG = {
         "offline": 10,
         "live_summary": 10,
         "video": 15,
-        "retry": 5,   # seconds
+        "retry": 30,   # seconds
         "daily": 60,  # minutes (daily stats save)
     },
 

@@ -41,6 +41,7 @@ class ConsoleCommands:
         return f"Interval '{key}' set to {value} (not saved yet)."
 
     def handle(self, cmd: str) -> str:
+        cmd = cmd.strip()
         if not cmd:
             return ""
 
@@ -48,6 +49,9 @@ class ConsoleCommands:
         name = parts[0].lower()
         args = parts[1:]
 
+        # ---------------------------------------------------------
+        # HELP
+        # ---------------------------------------------------------
         if name in ("help", "?"):
             return (
                 "Commands:\n"
@@ -65,6 +69,12 @@ class ConsoleCommands:
                 "  interval retry N          - set TikTok retry interval (sec)\n"
                 "  interval daily N          - set daily stats save interval (min)\n"
                 "  dailytime HH:MM           - set daily summary time (GMT)\n"
+                "  admin adduser <id>        - add admin user\n"
+                "  admin removeuser <id>     - remove admin user\n"
+                "  admin addrole <id>        - add admin role\n"
+                "  admin removerole <id>     - remove admin role\n"
+                "  setchannel <feature> <id> - set channel for feature\n"
+                "  setrole <feature> <id>    - set role for feature\n"
                 "  slash disable <cmd>       - hide a slash command\n"
                 "  slash enable <cmd>        - show a slash command\n"
                 "  slash list                - list disabled slash commands\n"
@@ -73,6 +83,9 @@ class ConsoleCommands:
                 "  exit / quit / stop        - stop terminal loop only\n"
             )
 
+        # ---------------------------------------------------------
+        # STATUS
+        # ---------------------------------------------------------
         if name == "status":
             cfg = self.cfg_mgr.config
             return (
@@ -80,8 +93,13 @@ class ConsoleCommands:
                 f"Intervals: {cfg.get('intervals', {})}\n"
                 f"Daily time (GMT): {cfg.get('daily_summary', {}).get('time_gmt', '23:00')}\n"
                 f"Maintenance: {cfg.get('maintenance_mode', False)}\n"
+                f"Admin users: {cfg.get('admin_users', [])}\n"
+                f"Admin roles: {cfg.get('admin_roles', [])}\n"
             )
 
+        # ---------------------------------------------------------
+        # BASIC COMMANDS
+        # ---------------------------------------------------------
         if name == "uptime":
             return f"Uptime: {self.uptime.get_uptime_str()}"
 
@@ -91,6 +109,9 @@ class ConsoleCommands:
         if name == "features":
             return f"Features: {self.cfg_mgr.config.get('features', {})}"
 
+        # ---------------------------------------------------------
+        # FEATURE FLAGS
+        # ---------------------------------------------------------
         if name == "feature" and len(args) == 2:
             fname, state = args
             state = state.lower()
@@ -100,6 +121,9 @@ class ConsoleCommands:
             self.feature_flags.set_flag(fname, enabled)
             return f"Feature '{fname}' set to {enabled} (not saved yet)."
 
+        # ---------------------------------------------------------
+        # MAINTENANCE MODE
+        # ---------------------------------------------------------
         if name == "maintenance" and len(args) == 1:
             state = args[0].lower()
             if state not in ("on", "off"):
@@ -108,11 +132,17 @@ class ConsoleCommands:
             self.feature_flags.set_maintenance(enabled)
             return f"Maintenance mode set to {enabled} (not saved yet)."
 
+        # ---------------------------------------------------------
+        # SET TIKTOK USERNAME
+        # ---------------------------------------------------------
         if name == "settiktok" and len(args) == 1:
             username = args[0]
             self.cfg_mgr.config["tiktok_username"] = username
             return f"TikTok username set to @{username} (not saved yet)."
 
+        # ---------------------------------------------------------
+        # INTERVALS
+        # ---------------------------------------------------------
         if name == "interval" and len(args) == 2:
             which, val = args
             if not val.isdigit():
@@ -130,11 +160,83 @@ class ConsoleCommands:
                 return self._set_interval("daily", n, None)
             return "Unknown interval type. Use offline/live/video/retry/daily."
 
+        # ---------------------------------------------------------
+        # DAILY SUMMARY TIME
+        # ---------------------------------------------------------
         if name == "dailytime" and len(args) == 1:
             time_str = args[0]
             self.cfg_mgr.config.setdefault("daily_summary", {})["time_gmt"] = time_str
             return f"Daily summary time set to {time_str} GMT (not saved yet)."
 
+        # ---------------------------------------------------------
+        # ADMIN COMMANDS
+        # ---------------------------------------------------------
+        if name == "admin" and len(args) >= 2:
+            sub = args[0].lower()
+            value = args[1]
+
+            cfg = self.cfg_mgr.config
+            cfg.setdefault("admin_users", [])
+            cfg.setdefault("admin_roles", [])
+
+            if sub == "adduser":
+                if value not in cfg["admin_users"]:
+                    cfg["admin_users"].append(value)
+                return f"Added admin user {value} (not saved yet)."
+
+            if sub == "removeuser":
+                if value in cfg["admin_users"]:
+                    cfg["admin_users"].remove(value)
+                return f"Removed admin user {value} (not saved yet)."
+
+            if sub == "addrole":
+                if value not in cfg["admin_roles"]:
+                    cfg["admin_roles"].append(value)
+                return f"Added admin role {value} (not saved yet)."
+
+            if sub == "removerole":
+                if value in cfg["admin_roles"]:
+                    cfg["admin_roles"].remove(value)
+                return f"Removed admin role {value} (not saved yet)."
+
+            return "Usage: admin <adduser|removeuser|addrole|removerole> <id>"
+
+        # ---------------------------------------------------------
+        # SET CHANNEL / ROLE FOR FEATURES
+        # ---------------------------------------------------------
+        if name == "channels":
+            ch = self.cfg_mgr.config.setdefault("channels", {})
+            if not ch:
+                return "No channels configured."
+            return "\n".join(f"{k}: {v}" for k, v in ch.items())
+
+        if name == "roles":
+            rl = self.cfg_mgr.config.setdefault("roles", {})
+            if not rl:
+                return "No roles configured."
+            return "\n".join(f"{k}: {v}" for k, v in rl.items())
+
+        if name == "setchannel" and len(args) == 2:
+            feature, channel_id = args
+
+            if not channel_id.isdigit():
+                return "Channel ID must be numeric."
+
+            self.cfg_mgr.config.setdefault("channels", {})[feature] = int(channel_id)
+            return f"Channel for '{feature}' set to {channel_id} (not saved yet)."
+
+        if name == "setrole" and len(args) == 2:
+            feature, role_id = args
+
+            if not role_id.isdigit():
+                return "Role ID must be numeric."
+
+            self.cfg_mgr.config.setdefault("roles", {})[feature] = int(role_id)
+            return f"Role for '{feature}' set to {role_id} (not saved yet)."
+
+        # ---------------------------------------------------------
+        # SLASH COMMAND VISIBILITY
+        # ---------------------------------------------------------
         if name == "slash" and len(args) >= 1:
             sub = args[0].lower()
             disabled = self.cfg_mgr.config.setdefault("disabled_slash_commands", [])
@@ -145,17 +247,23 @@ class ConsoleCommands:
                 if sub == "disable":
                     if cmd not in disabled:
                         disabled.append(cmd)
-                    return f"Slash command '{cmd}' disabled (hidden, not saved yet)."
+                    return f"Slash command '{cmd}' disabled (not saved yet)."
                 else:
                     if cmd in disabled:
                         disabled.remove(cmd)
-                    return f"Slash command '{cmd}' enabled (visible, not saved yet)."
+                    return f"Slash command '{cmd}' enabled (not saved yet)."
             return "Usage: slash disable <cmd> | slash enable <cmd> | slash list"
 
+        # ---------------------------------------------------------
+        # SAVE CONFIG
+        # ---------------------------------------------------------
         if name == "save":
             self.cfg_mgr.save_config()
             return "Config saved."
 
+        # ---------------------------------------------------------
+        # SHUTDOWN
+        # ---------------------------------------------------------
         if name == "shutdown":
             log.info("Terminal requested full shutdown.")
             return "__SHUTDOWN__"

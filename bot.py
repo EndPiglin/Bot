@@ -1,8 +1,8 @@
 import os
-
 import asyncio
 import signal
 import discord
+from functools import wraps
 
 from config.paths import Paths
 from config.config_manager import ConfigManager
@@ -10,7 +10,7 @@ from config.feature_flags import FeatureFlags
 
 from utils.logger import log
 from utils.uptime import Uptime
-from utils.system_monitor import SystemMonitor 
+from utils.system_monitor import SystemMonitor
 
 from tiktok.tiktok_api import TikTokAPI
 from tiktok.polling_engine import PollingEngine
@@ -22,11 +22,9 @@ from tiktok.daily_save_engine import DailySaveEngine
 from tiktok.daily_summary_engine import DailySummaryEngine
 
 from discord_bot.discord_events import DiscordBot
-
-from terminal.app import MainApp
-from terminal.log_window import LogWindow
 from terminal.console_commands import ConsoleCommands
 from terminal.input_handler import InputHandler
+from terminal.log_window import LogWindow
 
 
 class BotOrchestrator:
@@ -42,10 +40,10 @@ class BotOrchestrator:
         # Uptime
         self.uptime = Uptime()
 
-        # System monitor 
+        # System monitor
         self.system_monitor = SystemMonitor()
 
-        # Log window (TUI)
+        # Log window (CLI)
         self.log_window = LogWindow()
         log.log_window = self.log_window
 
@@ -74,7 +72,7 @@ class BotOrchestrator:
             uptime=self.uptime,
         )
 
-        # Terminal commands
+        # Console commands
         self.console_commands = ConsoleCommands(
             config_manager=self.cfg_mgr,
             feature_flags=self.feature_flags,
@@ -88,20 +86,6 @@ class BotOrchestrator:
         )
 
         self.input_handler = InputHandler(self.console_commands)
-
-        # TUI
-        self.tui = MainApp(
-            config_manager=self.cfg_mgr,
-            feature_flags=self.feature_flags,
-            polling_engine=self.polling_engine,
-            live_summary_engine=self.live_summary_engine,
-            final_summary_engine=self.final_summary_engine,
-            video_upload_engine=self.video_upload_engine,
-            daily_summary_engine=self.daily_summary_engine,
-            log_window=self.log_window,
-            system_monitor=self.system_monitor,  # <-- pass monitor
-        )
-
 
     # ----------------------------------------------------------------------
     # Engine initialization
@@ -189,24 +173,40 @@ class BotOrchestrator:
         asyncio.create_task(self.video_upload_engine.start())
         asyncio.create_task(self.daily_save_engine.start())
         asyncio.create_task(self.daily_summary_engine.start())
-        asyncio.create_task(self._system_monitor_loop())  # <-- start monitor loop
-
+        asyncio.create_task(self._system_monitor_loop())
 
     # ----------------------------------------------------------------------
-    # System monitor loop (PUT THIS HERE)
+    # System monitor loop
     # ----------------------------------------------------------------------
     async def _system_monitor_loop(self):
         while True:
             self.system_monitor.update()
-
-            if self.system_monitor.cpu > 90:
-                log.warning(f"High CPU usage: {self.system_monitor.cpu:.1f}%")
-
-            if self.system_monitor.ram_percent > 90:
-                log.warning(f"High RAM usage: {self.system_monitor.ram_percent:.1f}%")
-
             await asyncio.sleep(1)
 
+    # ----------------------------------------------------------------------
+    # CLI loop
+    # ----------------------------------------------------------------------
+    async def cli_loop(self):
+        loop = asyncio.get_event_loop()
+        while True:
+            try:
+                line = await loop.run_in_executor(None, input, "> ")
+            except (EOFError, KeyboardInterrupt):
+                log.info("CLI interrupted, shutting down...")
+                return
+
+            result = self.input_handler.handle_line(line)
+
+            if result == "__SHUTDOWN__":
+                log.info("Shutting down...")
+                return
+
+            if result == "__EXIT__":
+                log.info("Exiting CLI loop.")
+                continue
+
+            if result:
+                print(result)
 
     # ----------------------------------------------------------------------
     # Main run loop
@@ -214,22 +214,17 @@ class BotOrchestrator:
     async def run(self):
         await self.start_engines()
 
-        # Load Discord token from Termux environment variable
-        token = os.getenv("DISCORD_TOKEN")
-
-        # Fallback to config.json if env var missing
+        token = os.getenv("DISCORD_TOKEN") or self.config.get("discord_token", "")
         if not token:
-            token = self.config.get("discord_token", "")
-
-        if not token:
-            log.error("No Discord token found. Set DISCORD_TOKEN in Termux or config.json.")
+            log.error("No Discord token found.")
             return
 
+        log.info("Running in CLI mode. Type commands below.")
 
-        await asyncio.gather(
-            self.discord_bot.start(token),
-            self.tui.run_async(),
-        )
+        # Start Discord in background task
+        asyncio.create_task(self.discord_bot.start(token))
+
+        await self.cli_loop()
 
 
 # ----------------------------------------------------------------------
@@ -243,22 +238,58 @@ def main():
 
     def shutdown():
         log.info("Shutting down engines...")
-        orchestrator.polling_engine.stop()
-        orchestrator.live_mode_engine.stop()
-        orchestrator.live_summary_engine.stop()
-        orchestrator.video_upload_engine.stop()
-        orchestrator.daily_save_engine.stop()
-        orchestrator.daily_summary_engine.stop()
+        try:
+            orchestrator.polling_engine.stop()
+        except Exception:
+            pass
+        try:
+            orchestrator.live_mode_engine.stop()
+        except Exception:
+            pass
+        try:
+            orchestrator.live_summary_engine.stop()
+        except Exception:
+            pass
+        try:
+            orchestrator.video_upload_engine.stop()
+        except Exception:
+            pass
+        try:
+            orchestrator.daily_save_engine.stop()
+        except Exception:
+            pass
+        # daily_summary_engine may not implement stop in older versions; guard it
+        try:
+            orchestrator.daily_summary_engine.stop()
+        except Exception:
+            pass
+
+        # Cancel remaining tasks
+        for task in asyncio.all_tasks(loop):
+            if task is not asyncio.current_task(loop):
+                task.cancel()
+
         loop.stop()
 
     try:
         loop.add_signal_handler(signal.SIGINT, shutdown)
         loop.add_signal_handler(signal.SIGTERM, shutdown)
-    except:
+    except NotImplementedError:
+        # Some environments (Termux/Android) don't support add_signal_handler
         pass
 
     try:
         loop.run_until_complete(orchestrator.run())
+    except KeyboardInterrupt:
+        shutdown()
+        # give cancelled tasks a moment to exit
+        try:
+            loop.run_until_complete(asyncio.sleep(0.1))
+        except Exception:
+            pass
+    except RuntimeError as e:
+        # Event loop stopped before future completed; ensure shutdown
+        shutdown()
     finally:
         loop.close()
 

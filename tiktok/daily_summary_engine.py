@@ -24,6 +24,9 @@ class DailySummaryEngine:
 
             await asyncio.sleep(30)
 
+    def stop(self):
+        self.running = False
+
     async def generate_summary(self):
         date = datetime.utcnow().strftime("%Y-%m-%d")
         path = self.daily_dir / f"{date}.json"

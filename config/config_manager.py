@@ -26,8 +26,16 @@ class ConfigManager:
             log.error(f"Failed to load config.json, using defaults: {e}")
             raw = DEFAULT_CONFIG.copy()
 
-        self.config = validate_config(raw)
-        self.save_config()  # persist any migrations / defaults
+        validated = validate_config(raw)
+
+        # Only save if validation changed something
+        if validated != raw:
+            log.info("Config updated with new defaults or migrations.")
+            self.config = validated
+            self.save_config()
+        else:
+            self.config = validated
+
         return self.config
 
     def save_config(self) -> None:

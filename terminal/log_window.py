@@ -8,6 +8,7 @@ class LogWindow:
 
     def add(self, line: str) -> None:
         self.lines.append(line)
+        print(line)
 
     def get_recent_lines(self, n: int) -> List[str]:
         return list(self.lines)[-n:]

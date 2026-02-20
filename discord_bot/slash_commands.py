@@ -1,5 +1,6 @@
 import time
 from typing import Callable
+from functools import wraps
 
 import discord
 from discord import app_commands
@@ -44,6 +45,7 @@ async def setup_slash_commands(
         return True
 
     def admin_only(func: Callable) -> Callable:
+        @wraps(func)
         async def wrapper(interaction: discord.Interaction, *args, **kwargs):
             if not is_admin(interaction.user, cfg["admin_users"], cfg["admin_roles"]):
                 await interaction.response.send_message(
