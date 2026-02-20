@@ -1,32 +1,23 @@
 import json
-import time
-
-from config.paths import Paths
+from typing import Any, List
 
 
-_paths = Paths()
+def append_jsonl(path, data: Any):
+    """Append a JSON object as a single line."""
+    with path.open("a", encoding="utf-8") as f:
+        f.write(json.dumps(data) + "\n")
 
 
-def save_stream_summary(username: str, duration_seconds: int, stats: dict):
-    ts = int(time.time())
-    path = _paths.streams_dir / f"{username}_{ts}.json"
-    data = {
-        "username": username,
-        "timestamp": ts,
-        "duration_seconds": duration_seconds,
-        "stats": stats,
-    }
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(data, f, indent=4, ensure_ascii=False)
+def read_jsonl(path) -> List[Any]:
+    """Read all JSON objects from a JSONL file."""
+    items = []
+    if not path.exists():
+        return items
 
-
-def save_daily_summary(username: str, stats: dict):
-    ts = int(time.time())
-    path = _paths.daily_dir / f"{username}_{ts}.json"
-    data = {
-        "username": username,
-        "timestamp": ts,
-        "stats": stats,
-    }
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(data, f, indent=4, ensure_ascii=False)
+    with path.open("r", encoding="utf-8") as f:
+        for line in f:
+            try:
+                items.append(json.loads(line))
+            except:
+                pass
+    return items

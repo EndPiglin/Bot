@@ -23,15 +23,15 @@ DEFAULT_CONFIG = {
         "offline": 10,
         "live_summary": 10,
         "video": 15,
-        "retry": 5,      # NEW: TikTok retry interval (seconds)
-        "daily": 60,     # NEW: daily stats save interval (minutes)
+        "retry": 5,   # seconds
+        "daily": 60,  # minutes (daily stats save)
     },
 
     "daily_summary": {
-        "time_gmt": "23:00",  # NEW: when to send daily summary
+        "time_gmt": "23:00",
     },
 
-    "disabled_slash_commands": [],  # NEW: commands hidden from Discord
+    "disabled_slash_commands": [],
 
     "channels": {
         "live": None,

@@ -1,50 +1,39 @@
 import json
 from typing import Any, Dict
 
-from .paths import Paths
 from .defaults import DEFAULT_CONFIG
 from .validators import validate_config
+from .paths import Paths
 from utils.logger import log
 
 
 class ConfigManager:
-    def __init__(self, paths: Paths):
+    def __init__(self, paths: Paths) -> None:
         self.paths = paths
-        self._config: Dict[str, Any] = {}
+        self.config: Dict[str, Any] = {}
 
     def load_config(self) -> Dict[str, Any]:
-        path = self.paths.config_file
+        if not self.paths.config_file.exists():
+            log.info("Config file not found, creating default config.json")
+            self.config = DEFAULT_CONFIG.copy()
+            self.save_config()
+            return self.config
+
         try:
-            with open(path, "r", encoding="utf-8") as f:
-                data = json.load(f)
-        except FileNotFoundError:
-            log.warning("config.json not found, creating default.")
-            data = DEFAULT_CONFIG.copy()
-            self.save_config(data)
-        except json.JSONDecodeError:
-            log.error("config.json is invalid JSON, using defaults.")
-            data = DEFAULT_CONFIG.copy()
+            with self.paths.config_file.open("r", encoding="utf-8") as f:
+                raw = json.load(f)
+        except Exception as e:
+            log.error(f"Failed to load config.json, using defaults: {e}")
+            raw = DEFAULT_CONFIG.copy()
 
-        data = validate_config(data)
-        self._config = data
-        return self._config
+        self.config = validate_config(raw)
+        self.save_config()  # persist any migrations / defaults
+        return self.config
 
-    def save_config(self, config: Dict[str, Any] = None) -> None:
-        if config is None:
-            config = self._config
-        path = self.paths.config_file
-        with open(path, "w", encoding="utf-8") as f:
-            json.dump(config, f, indent=4, ensure_ascii=False)
-        log.info("Config saved.")
-
-    @property
-    def config(self) -> Dict[str, Any]:
-        return self._config
-
-    def update(self, path: str, value: Any) -> None:
-        parts = path.split(".")
-        ref = self._config
-        for p in parts[:-1]:
-            ref = ref.setdefault(p, {})
-        ref[parts[-1]] = value
-        self.save_config()
+    def save_config(self) -> None:
+        try:
+            with self.paths.config_file.open("w", encoding="utf-8") as f:
+                json.dump(self.config, f, indent=2, ensure_ascii=False)
+            log.info("Config saved.")
+        except Exception as e:
+            log.error(f"Failed to save config.json: {e}")

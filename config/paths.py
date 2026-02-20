@@ -2,7 +2,7 @@ from pathlib import Path
 
 
 class Paths:
-    def __init__(self):
+    def __init__(self) -> None:
         self.root = Path(__file__).resolve().parent.parent
         self.data_dir = self.root / "data"
         self.streams_dir = self.data_dir / "streams"

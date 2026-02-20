@@ -1,30 +1,26 @@
 import asyncio
-
-from config.config_manager import ConfigManager
-from config.feature_flags import FeatureFlags
 from utils.logger import log
-from .tiktok_client import TikTokClientWrapper
 
 
 class PollingEngine:
-    def __init__(self, config_manager: ConfigManager, feature_flags: FeatureFlags, discord_client):
-        self.config_manager = config_manager
-        self.feature_flags = feature_flags
-        self.discord_client = discord_client
-        self._running = True
-        self._tt = TikTokClientWrapper(self.config_manager.config.get("tiktok_username", ""))
+    def __init__(self, cfg_mgr, tiktok_client, interval_minutes: int):
+        self.cfg_mgr = cfg_mgr
+        self.client = tiktok_client
+        self.interval = interval_minutes
+        self.running = False
+        self.on_live_start = None  # callback
 
-    async def run(self):
-        await self.discord_client.wait_until_ready()
-        # Start TikTok client in background (live mode engine also uses it)
-        asyncio.create_task(self._tt.start_forever())
+    async def start(self):
+        self.running = True
+        log.info("PollingEngine started.")
 
-        while self._running:
-            cfg = self.config_manager.config
-            interval = cfg["intervals"]["offline"]
-            is_live = await self._tt.is_live()
-            log.info(f"PollingEngine: is_live={is_live}")
-            await asyncio.sleep(interval * 60)
+        while self.running:
+            stats = await self.client.fetch_live_status()
+            if stats and stats["is_live"]:
+                log.info("Stream detected — switching to live mode.")
+                if self.on_live_start:
+                    await self.on_live_start(stats)
+            await asyncio.sleep(self.interval * 60)
 
-    async def stop(self):
-        self._running = False
+    def stop(self):
+        self.running = False

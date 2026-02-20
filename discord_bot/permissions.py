@@ -1,14 +1,13 @@
-from typing import List
-
-import discord
+from typing import Iterable
 
 
-def is_admin(user: discord.Member, admin_users: List[int], admin_roles: List[int]) -> bool:
-    if user.guild_permissions.administrator:
-        return True
+def is_admin(user, admin_users: Iterable[int], admin_roles: Iterable[int]) -> bool:
     if user.id in admin_users:
         return True
-    user_role_ids = {r.id for r in user.roles}
-    if any(rid in user_role_ids for rid in admin_roles):
-        return True
+
+    if hasattr(user, "roles"):
+        for role in user.roles:
+            if role.id in admin_roles:
+                return True
+
     return False

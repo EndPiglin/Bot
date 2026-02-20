@@ -1,25 +1,17 @@
-import asyncio
-
+import time
 from utils.logger import log
 
 
 class Watchdog:
-    def __init__(self):
-        self.tasks = {}
-        self._running = True
+    def __init__(self, timeout_seconds=300):
+        self.timeout = timeout_seconds
+        self.last_heartbeat = time.time()
 
-    def register_task(self, name: str, task: asyncio.Task):
-        self.tasks[name] = task
+    def heartbeat(self):
+        self.last_heartbeat = time.time()
 
-    async def run(self):
-        while self._running:
-            for name, task in list(self.tasks.items()):
-                if task.done():
-                    log.warning(f"Task {name} has stopped.")
-            await asyncio.sleep(30)
-
-    async def stop_all(self):
-        self._running = False
-        for name, task in list(self.tasks.items()):
-            if not task.done():
-                task.cancel()
+    def check(self):
+        if time.time() - self.last_heartbeat > self.timeout:
+            log.warning("Watchdog timeout — engine may be frozen.")
+            return False
+        return True

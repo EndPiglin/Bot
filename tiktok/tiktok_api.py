@@ -51,14 +51,17 @@ class TikTokAPI:
         result: Dict[str, Any] = {
             "followers": None,
             "likes": None,
+            "views": None,
+            "is_live": False,
             "videos": [],
         }
+
+        # --- Followers / Likes ---
         try:
             user_module = data.get("UserModule", {})
             users = user_module.get("users", {})
             stats = user_module.get("stats", {})
             if users:
-                # pick first user
                 user_key = next(iter(users.keys()))
                 user_stats = stats.get(user_key, {})
                 result["followers"] = user_stats.get("followerCount")
@@ -66,6 +69,15 @@ class TikTokAPI:
         except Exception:
             pass
 
+        # --- Live detection ---
+        try:
+            live_room = data.get("LiveRoom", {})
+            if live_room and live_room.get("status") == 1:
+                result["is_live"] = True
+        except Exception:
+            pass
+
+        # --- Videos ---
         try:
             item_module = data.get("ItemModule", {})
             videos: List[Dict[str, Any]] = []
@@ -81,6 +93,9 @@ class TikTokAPI:
                 )
             videos.sort(key=lambda v: v.get("playCount") or 0, reverse=True)
             result["videos"] = videos
+
+            # Compute total views
+            result["views"] = sum(v.get("playCount") or 0 for v in videos)
         except Exception:
             pass
 
@@ -90,6 +105,8 @@ class TikTokAPI:
         result: Dict[str, Any] = {
             "followers": None,
             "likes": None,
+            "views": None,
+            "is_live": False,
             "videos": [],
         }
         try:
@@ -150,5 +167,5 @@ class TikTokAPI:
         return {
             "followers": stats.get("followers"),
             "likes": stats.get("likes"),
-            "views": None,  # could be approximated from videos if needed
+            "views": stats.get("views"),
         }

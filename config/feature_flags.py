@@ -2,14 +2,14 @@ from typing import Dict
 
 
 class FeatureFlags:
-    def __init__(self, config: Dict):
+    def __init__(self, config: Dict) -> None:
         self.config = config
 
     def is_enabled(self, name: str) -> bool:
-        return self.config.get("features", {}).get(name, False)
+        return bool(self.config.get("features", {}).get(name, False))
 
     def set_flag(self, name: str, value: bool) -> None:
-        self.config.setdefault("features", {})[name] = value
+        self.config.setdefault("features", {})[name] = bool(value)
 
     def is_maintenance(self) -> bool:
         return bool(self.config.get("maintenance_mode", False))

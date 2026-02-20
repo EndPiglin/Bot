@@ -1,15 +1,13 @@
 from collections import deque
-from typing import Deque
-
-from terminal.decorations import format_info
+from typing import Deque, List
 
 
 class LogWindow:
-    def __init__(self, max_lines: int = 50):
+    def __init__(self, max_lines: int = 500) -> None:
         self.lines: Deque[str] = deque(maxlen=max_lines)
 
-    def add(self, msg: str):
-        self.lines.append(format_info(msg))
+    def add(self, line: str) -> None:
+        self.lines.append(line)
 
-    def render(self) -> str:
-        return "\n".join(self.lines)
+    def get_recent_lines(self, n: int) -> List[str]:
+        return list(self.lines)[-n:]

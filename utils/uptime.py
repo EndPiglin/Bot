@@ -1,21 +1,16 @@
 import time
 
 
-class UptimeTracker:
+class Uptime:
     def __init__(self):
-        self.start_time = None
-
-    def mark_start(self):
         self.start_time = time.time()
 
     def get_uptime_seconds(self) -> int:
-        if self.start_time is None:
-            return 0
         return int(time.time() - self.start_time)
 
     def get_uptime_str(self) -> str:
-        secs = self.get_uptime_seconds()
-        h = secs // 3600
-        m = (secs % 3600) // 60
-        s = secs % 60
+        sec = self.get_uptime_seconds()
+        h = sec // 3600
+        m = (sec % 3600) // 60
+        s = sec % 60
         return f"{h}h {m}m {s}s"
