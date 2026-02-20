@@ -4,7 +4,6 @@ from textual.widgets import Header, Footer, Static, ListView, ListItem, Label
 
 from config.config_manager import ConfigManager
 from config.feature_flags import FeatureFlags
-from config.paths import Paths
 from terminal.views.dashboard import DashboardView
 from terminal.views.logs import LogsView
 from terminal.views.engines import EnginesView
@@ -63,6 +62,7 @@ class MainApp(App):
         video_upload_engine,
         daily_summary_engine,
         log_window,
+        system_monitor=None,
         **kwargs,
     ):
         super().__init__(**kwargs)
@@ -74,6 +74,7 @@ class MainApp(App):
         self.video_upload_engine = video_upload_engine
         self.daily_summary_engine = daily_summary_engine
         self.log_window = log_window
+        self.system_monitor = system_monitor
 
         self.current_view = None
 
@@ -82,7 +83,7 @@ class MainApp(App):
         with Horizontal(id="body"):
             yield Sidebar(self.switch_view, id="sidebar")
             with Vertical(id="content"):
-                yield DashboardView(self.cfg_mgr, self.feature_flags)
+                yield DashboardView(self.cfg_mgr, self.feature_flags, self.system_monitor)
         yield Footer()
 
     def on_mount(self) -> None:
@@ -94,10 +95,12 @@ class MainApp(App):
         content.remove_children()
 
         if view_id == "dashboard":
-            content.mount(DashboardView(self.cfg_mgr, self.feature_flags))
+            content.mount(DashboardView(self.cfg_mgr, self.feature_flags, self.system_monitor))
         elif view_id == "logs":
+            from terminal.views.logs import LogsView
             content.mount(LogsView(self.log_window))
         elif view_id == "engines":
+            from terminal.views.engines import EnginesView
             content.mount(
                 EnginesView(
                     self.cfg_mgr,
@@ -109,8 +112,10 @@ class MainApp(App):
                 )
             )
         elif view_id == "config":
+            from terminal.views.config import ConfigView
             content.mount(ConfigView(self.cfg_mgr))
         elif view_id == "commands":
+            from terminal.views.commands import CommandsView
             content.mount(CommandsView(self.cfg_mgr))
         else:
             content.mount(Static(f"Unknown view: {view_id}"))
