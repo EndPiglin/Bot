@@ -179,9 +179,18 @@ class BotOrchestrator:
     # System monitor loop
     # ----------------------------------------------------------------------
     async def _system_monitor_loop(self):
+        last_warning = None
+
         while True:
             self.system_monitor.update()
-            await asyncio.sleep(1)
+
+            pct = self.system_monitor.battery_monitor.get_battery_percent()
+            if pct is not None and pct <= self.system_monitor.battery_monitor.threshold:
+                if last_warning != pct:  # prevent spam
+                    last_warning = pct
+                    await self.discord_bot.send_battery_warning(pct)
+
+            await asyncio.sleep(3600)  # check every 30 seconds
 
     # ----------------------------------------------------------------------
     # CLI loop

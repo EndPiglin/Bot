@@ -56,3 +56,27 @@ class DiscordBot(discord.Client):
             log.info("Slash commands synced.")
         except Exception as e:
             log.error(f"Failed to sync slash commands: {e}")
+
+    async def send_battery_warning(self, pct: int):
+        cfg = self.config_manager.config
+
+        # Check feature flag
+        if not cfg.get("features", {}).get("battery_warnings", False):
+            return
+
+        # Get channel
+        channel_id = cfg.get("channels", {}).get("battery")
+        if not channel_id:
+            log.warning("Battery warning triggered but no battery channel set.")
+            return
+
+        channel = self.get_channel(int(channel_id))
+        if not channel:
+            log.error(f"Battery channel {channel_id} not found.")
+            return
+
+        try:
+            await channel.send(f"⚠️ **Battery low:** {pct}%")
+        except Exception as e:
+            log.error(f"Failed to send battery warning: {e}")
+

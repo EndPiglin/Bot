@@ -1,6 +1,7 @@
 import psutil
 import time
 import os
+from utils.battery_monitor import BatteryMonitor
 
 
 class SystemMonitor:
@@ -10,6 +11,9 @@ class SystemMonitor:
         self.ram_total = 0
         self.ram_percent = 0.0
         self.last_update = 0
+
+        # NEW: battery monitor
+        self.battery_monitor = BatteryMonitor()
 
     def _safe_cpu_percent(self):
         """
