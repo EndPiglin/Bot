@@ -1,6 +1,5 @@
 import asyncio
 import os
-import signal
 import sys
 
 import discord
@@ -39,14 +38,10 @@ class BotApp:
 
         self.client = discord.Client(intents=INTENTS)
         self.tree = discord.app_commands.CommandTree(self.client)
-
-        # expose tree to events
         self.client.tree = self.tree
 
-        self.loop = asyncio.get_event_loop()
         self.shutdown_event = asyncio.Event()
 
-        # Engines
         self.polling_engine = PollingEngine(self.config_manager, self.feature_flags, self.client)
         self.live_mode_engine = LiveModeEngine(self.config_manager, self.feature_flags, self.client)
         self.live_summary_engine = LiveSummaryEngine(self.config_manager, self.feature_flags, self.client)
@@ -80,34 +75,27 @@ class BotApp:
             uptime=self.uptime,
         )
 
-        # BOT_TOKEN from environment overrides config
         token = os.getenv("DISCORD_TOKEN") or self.config.get("discord_token")
         if not token:
-            log.error("No BOT_TOKEN set. Use: export BOT_TOKEN=xxxx")
+            log.error("No DISCORD_TOKEN set. Use: export DISCORD_TOKEN=xxxx")
             sys.exit(1)
-
-        try:
-            self.loop.add_signal_handler(signal.SIGINT, lambda: asyncio.create_task(self.stop()))
-            self.loop.add_signal_handler(signal.SIGTERM, lambda: asyncio.create_task(self.stop()))
-        except NotImplementedError:
-            pass
 
         await self.client.start(token)
 
     async def start_background_tasks(self):
         log.info("Starting background engines...")
+        loop = asyncio.get_running_loop()
 
-        self.watchdog.register_task("polling", self.loop.create_task(self.polling_engine.run()))
-        self.watchdog.register_task("live_mode", self.loop.create_task(self.live_mode_engine.run()))
-        self.watchdog.register_task("live_summary", self.loop.create_task(self.live_summary_engine.run()))
-        self.watchdog.register_task("final_summary", self.loop.create_task(self.final_summary_engine.run()))
-        self.watchdog.register_task("video_upload", self.loop.create_task(self.video_upload_engine.run()))
-        self.watchdog.register_task("daily_summary", self.loop.create_task(self.daily_summary_engine.run()))
-        self.watchdog.register_task("battery", self.loop.create_task(self.battery_monitor.run()))
-        self.watchdog.register_task("watchdog", self.loop.create_task(self.watchdog.run()))
+        self.watchdog.register_task("polling", loop.create_task(self.polling_engine.run()))
+        self.watchdog.register_task("live_mode", loop.create_task(self.live_mode_engine.run()))
+        self.watchdog.register_task("live_summary", loop.create_task(self.live_summary_engine.run()))
+        self.watchdog.register_task("final_summary", loop.create_task(self.final_summary_engine.run()))
+        self.watchdog.register_task("video_upload", loop.create_task(self.video_upload_engine.run()))
+        self.watchdog.register_task("daily_summary", loop.create_task(self.daily_summary_engine.run()))
+        self.watchdog.register_task("battery", loop.create_task(self.battery_monitor.run()))
+        self.watchdog.register_task("watchdog", loop.create_task(self.watchdog.run()))
 
-        # Terminal UI
-        self.loop.create_task(
+        loop.create_task(
             start_terminal_loop(
                 config_manager=self.config_manager,
                 feature_flags=self.feature_flags,
@@ -129,13 +117,9 @@ class BotApp:
         await self.client.close()
         await self.watchdog.stop_all()
         log.info("Bot stopped.")
-        asyncio.get_event_loop().stop()
 
 
 app = BotApp()
 
 if __name__ == "__main__":
-    try:
-        asyncio.run(app.start())
-    except KeyboardInterrupt:
-        pass
+    asyncio.run(app.start())

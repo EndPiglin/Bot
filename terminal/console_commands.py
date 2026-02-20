@@ -1,5 +1,3 @@
-from typing import Any
-
 from config.config_manager import ConfigManager
 from config.defaults import (
     MIN_OFFLINE_INTERVAL,
@@ -32,18 +30,14 @@ class ConsoleCommands:
         self.daily_summary_engine = daily_summary_engine
         self.uptime = uptime
         self.log_window = log_window
-        self.app = app  # for shutdown
+        self.app = app
 
     def _set_interval(self, key: str, value: int, minimum: int) -> str:
+        # terminal is allowed to go below minimum, but we still show a warning
         if value < minimum:
-            return f"Minimum for {key} is {minimum} minutes."
+            self.log_window.add(f"Warning: {key} below recommended minimum ({minimum} minutes).")
         self.cfg_mgr.config["intervals"][key] = value
-        self.cfg_mgr.save_config()
-        return f"Interval '{key}' set to {value} minutes."
-
-    def _restart_engines(self) -> str:
-        # simple message; engines are long-running loops, watchdog will notice if we ever add restart logic
-        return "Engine restart requested (currently no hard restart, loops run continuously)."
+        return f"Interval '{key}' set to {value} minutes (not saved yet)."
 
     def handle(self, cmd: str) -> str:
         if not cmd:
@@ -68,7 +62,6 @@ class ConsoleCommands:
                 "  interval live N      - set live summary interval (min)\n"
                 "  interval video N     - set video interval (min)\n"
                 "  save                 - save config\n"
-                "  restart              - logical engine restart marker\n"
                 "  shutdown             - shutdown whole bot\n"
                 "  exit / quit / stop   - stop terminal loop only\n"
             )
@@ -76,7 +69,7 @@ class ConsoleCommands:
         if name == "status":
             cfg = self.cfg_mgr.config
             return (
-                f"Discord token set: {'yes' if cfg.get('discord_token') else 'env/BOT_TOKEN'}\n"
+                f"Discord token set: {'yes' if cfg.get('discord_token') else 'env/DISCORD_TOKEN'}\n"
                 f"TikTok username: @{cfg.get('tiktok_username', '') or '<not set>'}\n"
                 f"Intervals: {cfg.get('intervals', {})}\n"
                 f"Maintenance: {cfg.get('maintenance_mode', False)}\n"
@@ -98,8 +91,7 @@ class ConsoleCommands:
                 return "Usage: feature <name> on/off"
             enabled = state == "on"
             self.feature_flags.set_flag(fname, enabled)
-            self.cfg_mgr.save_config()
-            return f"Feature '{fname}' set to {enabled}"
+            return f"Feature '{fname}' set to {enabled} (not saved yet)."
 
         if name == "maintenance" and len(args) == 1:
             state = args[0].lower()
@@ -107,14 +99,12 @@ class ConsoleCommands:
                 return "Usage: maintenance on/off"
             enabled = state == "on"
             self.feature_flags.set_maintenance(enabled)
-            self.cfg_mgr.save_config()
-            return f"Maintenance mode set to {enabled}"
+            return f"Maintenance mode set to {enabled} (not saved yet)."
 
         if name == "settiktok" and len(args) == 1:
             username = args[0]
             self.cfg_mgr.config["tiktok_username"] = username
-            self.cfg_mgr.save_config()
-            return f"TikTok username set to @{username}"
+            return f"TikTok username set to @{username} (not saved yet)."
 
         if name == "interval" and len(args) == 2:
             which, val = args
@@ -133,13 +123,8 @@ class ConsoleCommands:
             self.cfg_mgr.save_config()
             return "Config saved."
 
-        if name == "restart":
-            return self._restart_engines()
-
         if name == "shutdown":
-            # full bot shutdown
             log.info("Terminal requested full shutdown.")
-            # we just mark special token; tui will call app.stop()
             return "__SHUTDOWN__"
 
         if name in ("exit", "quit", "stop"):

@@ -1,15 +1,13 @@
-# Hard minimums
 MIN_OFFLINE_INTERVAL = 5
 MIN_LIVE_SUMMARY_INTERVAL = 5
 MIN_VIDEO_INTERVAL = 5
-MIN_LIVE_UPDATE_INTERVAL = 5
 
 DEFAULT_CONFIG = {
-    "discord_token": "",          # optional, overridden by BOT_TOKEN env
+    "discord_token": "",
     "tiktok_username": "",
     "admin_users": [],
     "admin_roles": [],
-    "maintenance_mode": False,    # NEW
+    "maintenance_mode": False,
     "features": {
         "live_notifications": True,
         "livesummary": True,

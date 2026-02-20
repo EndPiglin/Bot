@@ -1,5 +1,6 @@
 import time
 
+
 class UptimeTracker:
     def __init__(self):
         self.start_time = None

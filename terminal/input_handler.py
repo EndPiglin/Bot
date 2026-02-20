@@ -38,10 +38,8 @@ class TerminalUI:
         self.app = app
 
     async def loop(self):
-        from asyncio import get_event_loop
-
-        loop = get_event_loop()
         self.log_window.add("Terminal started. Type 'help' for commands.")
+
         with patch_stdout():
             while True:
                 print()
@@ -50,15 +48,20 @@ class TerminalUI:
                 print("-" * 40)
                 print(self.log_window.render())
                 print("-" * 40)
-                cmd = await loop.run_in_executor(None, self.session.prompt, "> ")
+
+                cmd = await self.session.prompt_async("> ")
                 cmd = cmd.strip()
+
                 result = self.commands.handle(cmd)
+
                 if result == "__EXIT__":
-                    self.log_window.add("Terminal loop requested exit (bot keeps running).")
+                    self.log_window.add("Terminal loop exited.")
                     break
+
                 if result == "__SHUTDOWN__":
                     self.log_window.add("Full shutdown requested.")
                     await self.app.stop()
                     break
+
                 if result:
                     self.log_window.add(result)

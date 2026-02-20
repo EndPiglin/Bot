@@ -11,7 +11,6 @@ class FeatureFlags:
     def set_flag(self, name: str, value: bool) -> None:
         self.config.setdefault("features", {})[name] = value
 
-    # maintenance is a top-level flag, not in features
     def is_maintenance(self) -> bool:
         return bool(self.config.get("maintenance_mode", False))
 

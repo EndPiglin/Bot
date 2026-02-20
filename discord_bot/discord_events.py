@@ -1,4 +1,3 @@
-import asyncio
 import discord
 from utils.logger import log
 
@@ -15,7 +14,6 @@ def setup_discord_events(
     async def on_ready():
         log.info(f"Logged in as {client.user} (ID: {client.user.id})")
 
-        # Sync slash commands HERE
         try:
             await client.tree.sync()
             log.info("Slash commands synced successfully.")

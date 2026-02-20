@@ -163,5 +163,4 @@ async def setup_slash_commands(
             f"Role for `{feature_name}` set to {role.mention}.", ephemeral=True
         )
 
-    # ❗ DO NOT SYNC HERE
     log.info("Slash commands registered (sync will happen in on_ready).")
