@@ -1,5 +1,6 @@
 import psutil
 import time
+import os
 
 
 class SystemMonitor:
@@ -10,15 +11,30 @@ class SystemMonitor:
         self.ram_percent = 0.0
         self.last_update = 0
 
+    def _safe_cpu_percent(self):
+        """
+        Android/Termux cannot read /proc/stat.
+        So we fall back to load average approximation.
+        """
+        try:
+            load1, load5, load15 = os.getloadavg()
+            cores = psutil.cpu_count(logical=True) or 1
+            cpu_percent = min(100.0, (load1 / cores) * 100)
+            return cpu_percent
+        except Exception:
+            return 0.0
+
     def update(self):
         now = time.time()
         if now - self.last_update < 1:
-            return  # update at most once per second
+            return
 
         self.last_update = now
 
-        self.cpu = psutil.cpu_percent(interval=None)
+        # CPU (safe fallback)
+        self.cpu = self._safe_cpu_percent()
 
+        # RAM (psutil works fine on Android)
         mem = psutil.virtual_memory()
         self.ram_used = mem.used // (1024 * 1024)
         self.ram_total = mem.total // (1024 * 1024)

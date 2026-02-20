@@ -1,3 +1,5 @@
+import os
+
 import asyncio
 import signal
 import discord
@@ -212,10 +214,17 @@ class BotOrchestrator:
     async def run(self):
         await self.start_engines()
 
-        token = self.config.get("discord_token", "")
+        # Load Discord token from Termux environment variable
+        token = os.getenv("DISCORD_TOKEN")
+
+        # Fallback to config.json if env var missing
         if not token:
-            log.error("No Discord token set in config.json")
+            token = self.config.get("discord_token", "")
+
+        if not token:
+            log.error("No Discord token found. Set DISCORD_TOKEN in Termux or config.json.")
             return
+
 
         await asyncio.gather(
             self.discord_bot.start(token),
