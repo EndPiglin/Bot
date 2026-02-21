@@ -133,6 +133,8 @@ class BotOrchestrator:
             log.info("LIVE START detected")
             asyncio.create_task(self.live_mode_engine.start())
             asyncio.create_task(self.live_summary_engine.start())
+            # Discord live notification (features.live_notifications + channels.live)
+            asyncio.create_task(self.discord_bot.send_live_notification(stats))
 
         self.polling_engine.on_live_start = on_live_start
 
@@ -140,26 +142,38 @@ class BotOrchestrator:
             log.info("LIVE END detected")
             await self.final_summary_engine.run({"end": True})
             self.live_summary_engine.stop()
+            # if you later add a dedicated live-end notification, call it here
 
         self.live_mode_engine.on_live_end = on_live_end
 
         async def on_live_summary(stats):
             log.info(f"Live summary: {stats}")
+            summary_text = str(stats)
+            # features.livesummary + channels.livesummary
+            asyncio.create_task(self.discord_bot.send_live_summary(summary_text))
 
         self.live_summary_engine.on_summary = on_live_summary
 
         async def on_final_summary(data):
             log.info(f"Final summary: {data}")
+            summary_text = str(data)
+            # features.finalsummary + channels.finalsummary
+            asyncio.create_task(self.discord_bot.send_final_summary(summary_text))
 
         self.final_summary_engine.on_final_summary = on_final_summary
 
         async def on_new_video(video_id):
             log.info(f"New video detected: {video_id}")
+            # features.video_notifications + channels.videos
+            asyncio.create_task(self.discord_bot.send_new_video(video_id))
 
         self.video_upload_engine.on_new_video = on_new_video
 
         async def on_daily_summary(summary):
             log.info(f"Daily summary: {summary}")
+            summary_text = str(summary)
+            # features.daily_summary + channels.summary
+            asyncio.create_task(self.discord_bot.send_daily_summary(summary_text))
 
         self.daily_summary_engine.on_daily_summary = on_daily_summary
 
@@ -174,6 +188,8 @@ class BotOrchestrator:
         asyncio.create_task(self.daily_save_engine.start())
         asyncio.create_task(self.daily_summary_engine.start())
         asyncio.create_task(self._system_monitor_loop())
+        # TikTokLive listener
+        asyncio.create_task(self.tiktok.start_live_listener())
 
     # ----------------------------------------------------------------------
     # System monitor loop
@@ -190,7 +206,7 @@ class BotOrchestrator:
                     last_warning = pct
                     await self.discord_bot.send_battery_warning(pct)
 
-            await asyncio.sleep(3600)  # check every 30 seconds
+            await asyncio.sleep(3600)
 
     # ----------------------------------------------------------------------
     # CLI loop
@@ -267,13 +283,11 @@ def main():
             orchestrator.daily_save_engine.stop()
         except Exception:
             pass
-        # daily_summary_engine may not implement stop in older versions; guard it
         try:
             orchestrator.daily_summary_engine.stop()
         except Exception:
             pass
 
-        # Cancel remaining tasks
         for task in asyncio.all_tasks(loop):
             if task is not asyncio.current_task(loop):
                 task.cancel()
@@ -284,20 +298,17 @@ def main():
         loop.add_signal_handler(signal.SIGINT, shutdown)
         loop.add_signal_handler(signal.SIGTERM, shutdown)
     except NotImplementedError:
-        # Some environments (Termux/Android) don't support add_signal_handler
         pass
 
     try:
         loop.run_until_complete(orchestrator.run())
     except KeyboardInterrupt:
         shutdown()
-        # give cancelled tasks a moment to exit
         try:
             loop.run_until_complete(asyncio.sleep(0.1))
         except Exception:
             pass
-    except RuntimeError as e:
-        # Event loop stopped before future completed; ensure shutdown
+    except RuntimeError:
         shutdown()
     finally:
         loop.close()

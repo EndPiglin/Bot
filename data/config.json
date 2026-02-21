@@ -1,40 +1,44 @@
 {
-    "discord_token": "",
-    "tiktok_username": "your_tiktok_username",
-    "admin_users": [],
-    "admin_roles": ["1391779398130208799"],
-    "features": {
-        "live_notifications": true,
-        "livesummary": true,
-        "finalsummary": true,
-        "video_notifications": true,
-        "daily_summary": true,
-        "battery_warnings": true,
-        "shutdown_alerts": true
-    },
-    "intervals": {
-        "offline": 10,
-        "live_summary": 10,
-        "video": 15,
-        "retry": 5,
-        "daily": 60
-    },
-    "daily_summary": {
-        "time_gmt": "23:00"
-    },
-    "disabled_slash_commands": [],
-    "channels": {
-        "live": null,
-        "livesummary": null,
-        "finalsummary": null,
-        "videos": null,
-        "summary": null
-    },
-    "roles": {
-        "live": null,
-        "livesummary": null,
-        "finalsummary": null,
-        "videos": null,
-        "summary": null
-    }
+  "discord_token": "",
+  "tiktok_username": "theweirdesthumanofficial",
+  "admin_users": [
+    "555790590533697554"
+  ],
+  "admin_roles": [],
+  "features": {
+    "live_notifications": true,
+    "livesummary": true,
+    "finalsummary": true,
+    "video_notifications": true,
+    "daily_summary": true,
+    "battery_warnings": true,
+    "shutdown_alerts": true
+  },
+  "intervals": {
+    "offline": 10,
+    "live_summary": 10,
+    "video": 15,
+    "retry": 5,
+    "daily": 60
+  },
+  "daily_summary": {
+    "time_gmt": "23:00"
+  },
+  "disabled_slash_commands": [],
+  "channels": {
+    "live": 1474520286908125205,
+    "livesummary": 1474520476503248998,
+    "finalsummary": 1474520476503248998,
+    "videos": 1474520778081964207,
+    "summary": 1474520863167479973,
+    "battery": 972247469142450199
+  },
+  "roles": {
+    "live": null,
+    "livesummary": null,
+    "finalsummary": null,
+    "videos": null,
+    "summary": null
+  },
+  "maintenance_mode": false
 }

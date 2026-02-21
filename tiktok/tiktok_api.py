@@ -1,189 +1,163 @@
+import asyncio
+import aiohttp
 import json
 import re
-from typing import Optional, Dict, Any, List
-
-import aiohttp
-from bs4 import BeautifulSoup
-
 from utils.logger import log
 
 
 class TikTokAPI:
     """
-    Hybrid scraping:
-    - Primary: parse SIGI_STATE JSON from HTML
-    - Fallback: regex scraping
+    TikTok LIVE detector using TikTok's public web API.
+    No API keys, no TikTokLive library, no rate limits.
+    Works on Termux.
     """
 
-    def __init__(self, username: str):
-        self.username = username
-        self.base_url = f"https://www.tiktok.com/@{username}"
+    def __init__(self, username: str, retry_interval: int = 10):
+        self.username = username.lstrip("@")
+        self.retry_interval = retry_interval
+
+        # Live state
+        self.is_live = False
+        self.live_title = None
+        self.room_id = None
+        self.viewer_count = 0
+        self.thumbnail = None
 
     # ----------------------------------------------------------------------
-    # HTML fetch
+    # INTERNAL: Fetch TikTok profile HTML
     # ----------------------------------------------------------------------
-    async def _fetch_html(self) -> Optional[str]:
+    async def _fetch_profile_html(self):
+        url = f"https://www.tiktok.com/@{self.username}"
         headers = {
-            "User-Agent": "Mozilla/5.0 (Linux; Android 10; Mobile)",
-            "Accept-Language": "en-US,en;q=0.9",
+            "User-Agent": (
+                "Mozilla/5.0 (Linux; Android 10; Mobile) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/120.0.0.0 Mobile Safari/537.36"
+            )
         }
+
         try:
             async with aiohttp.ClientSession() as session:
-                async with session.get(self.base_url, headers=headers, timeout=15) as resp:
-                    if resp.status != 200:
-                        log.warning(f"TikTokAPI: status {resp.status} for {self.base_url}")
-                        return None
+                async with session.get(url, headers=headers) as resp:
                     return await resp.text()
         except Exception as e:
-            log.warning(f"TikTokAPI: error fetching HTML: {e}")
+            log.error(f"[TikTokAPI] Failed to fetch profile HTML: {e}")
             return None
 
     # ----------------------------------------------------------------------
-    # SIGI_STATE parsing
+    # INTERNAL: Extract JSON data from HTML
     # ----------------------------------------------------------------------
-    def _parse_sigi_state(self, html: str) -> Optional[Dict[str, Any]]:
-        soup = BeautifulSoup(html, "html.parser")
-        script = soup.find("script", id="SIGI_STATE")
-        if not script or not script.string:
+    def _extract_json(self, html: str):
+        """
+        TikTok embeds JSON inside <script id="SIGI_STATE"> ... </script>
+        """
+        try:
+            match = re.search(
+                r'<script id="SIGI_STATE"[^>]*>(.*?)</script>',
+                html,
+                re.DOTALL,
+            )
+            if not match:
+                return None
+
+            raw_json = match.group(1)
+            return json.loads(raw_json)
+        except Exception:
             return None
-        try:
-            return json.loads(script.string)
-        except Exception as e:
-            log.warning(f"TikTokAPI: error parsing SIGI_STATE JSON: {e}")
-            return None
-
-    def _extract_from_sigi(self, data: Dict[str, Any]) -> Dict[str, Any]:
-        result = {
-            "followers": None,
-            "likes": None,
-            "views": None,
-            "is_live": False,
-            "videos": [],
-        }
-
-        # Followers / Likes
-        try:
-            user_module = data.get("UserModule", {})
-            users = user_module.get("users", {})
-            stats = user_module.get("stats", {})
-            if users:
-                user_key = next(iter(users.keys()))
-                user_stats = stats.get(user_key, {})
-                result["followers"] = user_stats.get("followerCount")
-                result["likes"] = user_stats.get("heartCount")
-        except Exception:
-            pass
-
-        # Live detection
-        try:
-            live_room = data.get("LiveRoom", {})
-            if live_room and live_room.get("status") == 1:
-                result["is_live"] = True
-        except Exception:
-            pass
-
-        # Videos
-        try:
-            item_module = data.get("ItemModule", {})
-            videos = []
-            for vid_id, item in item_module.items():
-                videos.append(
-                    {
-                        "id": vid_id,
-                        "url": f"{self.base_url}/video/{vid_id}",
-                        "playCount": item.get("stats", {}).get("playCount"),
-                        "diggCount": item.get("stats", {}).get("diggCount"),
-                        "desc": item.get("desc", ""),
-                    }
-                )
-            videos.sort(key=lambda v: v.get("playCount") or 0, reverse=True)
-            result["videos"] = videos
-            result["views"] = sum(v.get("playCount") or 0 for v in videos)
-        except Exception:
-            pass
-
-        return result
 
     # ----------------------------------------------------------------------
-    # Fallback regex
+    # PUBLIC: Detect live status
     # ----------------------------------------------------------------------
-    def _fallback_regex(self, html: str) -> Dict[str, Any]:
-        result = {
-            "followers": None,
-            "likes": None,
-            "views": None,
-            "is_live": False,
-            "videos": [],
-        }
+    async def fetch_live_status(self):
+        """
+        Returns:
+            {
+                "is_live": bool,
+                "viewer_count": int,
+                "title": str,
+                "room_id": str,
+                "thumbnail": str
+            }
+        """
 
-        try:
-            m = re.search(r'"followerCount":(\d+)', html)
-            if m:
-                result["followers"] = int(m.group(1))
-        except Exception:
-            pass
-
-        try:
-            m = re.search(r'"heartCount":(\d+)', html)
-            if m:
-                result["likes"] = int(m.group(1))
-        except Exception:
-            pass
-
-        try:
-            m = re.search(r'"videoId":"(.*?)"', html)
-            if m:
-                vid_id = m.group(1)
-                result["videos"] = [{"id": vid_id, "url": f"{self.base_url}/video/{vid_id}"}]
-        except Exception:
-            pass
-
-        return result
-
-    # ----------------------------------------------------------------------
-    # Public API
-    # ----------------------------------------------------------------------
-    async def get_profile_stats(self) -> Optional[Dict[str, Any]]:
-        html = await self._fetch_html()
+        html = await self._fetch_profile_html()
         if not html:
-            return None
+            return {"is_live": False}
 
-        data = self._parse_sigi_state(html)
-        if data:
-            return self._extract_from_sigi(data)
-        return self._fallback_regex(html)
+        data = self._extract_json(html)
+        if not data:
+            return {"is_live": False}
 
-    async def get_latest_video(self) -> Optional[Dict[str, Any]]:
-        stats = await self.get_profile_stats()
-        if not stats:
-            return None
-        videos = stats.get("videos") or []
-        return videos[0] if videos else None
+        # TikTok stores live info under UserModule -> users -> username
+        try:
+            user_data = data["UserModule"]["users"][self.username]
+        except KeyError:
+            return {"is_live": False}
 
-    async def get_daily_stats(self) -> Optional[Dict[str, Any]]:
-        stats = await self.get_profile_stats()
-        if not stats:
-            return None
+        # LIVE detection
+        is_live = user_data.get("isLive", False)
+
+        if not is_live:
+            # Reset state
+            self.is_live = False
+            self.room_id = None
+            self.live_title = None
+            self.viewer_count = 0
+            self.thumbnail = None
+
+            return {"is_live": False}
+
+        # Extract live metadata
+        room_id = user_data.get("liveRoomId")
+        title = user_data.get("liveTitle") or "TikTok LIVE"
+        thumbnail = user_data.get("coverUrl")
+        viewer_count = user_data.get("liveViewerCount", 0)
+
+        # Update internal state
+        self.is_live = True
+        self.room_id = room_id
+        self.live_title = title
+        self.thumbnail = thumbnail
+        self.viewer_count = viewer_count
+
         return {
-            "followers": stats.get("followers"),
-            "likes": stats.get("likes"),
-            "views": stats.get("views"),
+            "is_live": True,
+            "viewer_count": viewer_count,
+            "title": title,
+            "room_id": room_id,
+            "thumbnail": thumbnail,
         }
 
     # ----------------------------------------------------------------------
-    # Engine compatibility wrappers
+    # PUBLIC: Fetch profile stats (followers, likes)
     # ----------------------------------------------------------------------
     async def fetch_profile_stats(self):
-        return await self.get_profile_stats()
+        html = await self._fetch_profile_html()
+        if not html:
+            return {"followers": 0, "likes": 0, "views": 0}
 
-    async def fetch_live_status(self):
-        stats = await self.get_profile_stats()
-        if not stats:
-            return None
+        data = self._extract_json(html)
+        if not data:
+            return {"followers": 0, "likes": 0, "views": 0}
 
-        return {
-            "is_live": stats.get("is_live", False),
-            "viewer_count": 0,  # TikTok web does not expose this
-            "likes": stats.get("likes"),
-            "followers": stats.get("followers"),
-        }
+        try:
+            stats = data["UserModule"]["stats"][self.username]
+            return {
+                "followers": stats.get("followerCount", 0),
+                "likes": stats.get("heartCount", 0),
+                "views": stats.get("videoCount", 0),
+            }
+        except KeyError:
+            return {"followers": 0, "likes": 0, "views": 0}
+
+    # ----------------------------------------------------------------------
+    # Dummy listener (kept for compatibility)
+    # ----------------------------------------------------------------------
+    async def start_live_listener(self):
+        """
+        TikTokLive replacement.
+        Does nothing, but keeps compatibility with your orchestrator.
+        """
+        log.info("[TikTokAPI] start_live_listener() is not needed in Web-Polling mode.")
+        while True:
+            await asyncio.sleep(3600)

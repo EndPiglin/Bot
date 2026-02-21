@@ -57,26 +57,44 @@ class DiscordBot(discord.Client):
         except Exception as e:
             log.error(f"Failed to sync slash commands: {e}")
 
-    async def send_battery_warning(self, pct: int):
+    async def _send(self, feature_name: str, channel_key: str, message: str):
         cfg = self.config_manager.config
 
-        # Check feature flag
-        if not cfg.get("features", {}).get("battery_warnings", False):
+        if not cfg.get("features", {}).get(feature_name, False):
             return
 
-        # Get channel
-        channel_id = cfg.get("channels", {}).get("battery")
+        channel_id = cfg.get("channels", {}).get(channel_key)
         if not channel_id:
-            log.warning("Battery warning triggered but no battery channel set.")
+            log.error(f"{feature_name} enabled but no channel set for '{channel_key}'.")
             return
 
         channel = self.get_channel(int(channel_id))
         if not channel:
-            log.error(f"Battery channel {channel_id} not found.")
+            log.error(f"Channel {channel_id} not found for {feature_name}.")
             return
 
         try:
-            await channel.send(f"⚠️ **Battery low:** {pct}%")
+            await channel.send(message)
         except Exception as e:
-            log.error(f"Failed to send battery warning: {e}")
+            log.error(f"Failed to send {feature_name}: {e}")
 
+    # ---- Notification types (aligned with config.json) ----
+
+    async def send_live_notification(self, stats=None):
+        await self._send("live_notifications", "live", "🔴 **The streamer is LIVE on TikTok!**")
+
+    async def send_live_summary(self, summary_text: str):
+        await self._send("livesummary", "livesummary", f"📊 **Live Summary:**\n{summary_text}")
+
+    async def send_final_summary(self, summary_text: str):
+        await self._send("finalsummary", "finalsummary", f"📘 **Final Summary:**\n{summary_text}")
+
+    async def send_new_video(self, video_id: str):
+        await self._send("video_notifications", "videos", f"🎥 **New TikTok video posted!**\nID: `{video_id}`")
+
+    async def send_daily_summary(self, summary_text: str):
+        # your config uses "daily_summary" feature and "summary" channel
+        await self._send("daily_summary", "summary", f"🗓️ **Daily Summary:**\n{summary_text}")
+
+    async def send_battery_warning(self, pct: int):
+        await self._send("battery_warnings", "battery", f"⚠️ **Battery low:** {pct}%")
