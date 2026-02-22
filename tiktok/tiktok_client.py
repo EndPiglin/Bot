@@ -1,10 +1,6 @@
 import asyncio
 from utils.logger import log
 
-from TikTokLive import TikTokLiveClient
-from TikTokLive.events import ConnectEvent, LiveEndEvent
-
-
 class TikTokClient:
     def __init__(self, username: str, retry_interval: int):
         self.username = username

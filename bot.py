@@ -133,7 +133,6 @@ class BotOrchestrator:
             log.info("LIVE START detected")
             asyncio.create_task(self.live_mode_engine.start())
             asyncio.create_task(self.live_summary_engine.start())
-            # Discord live notification (features.live_notifications + channels.live)
             asyncio.create_task(self.discord_bot.send_live_notification(stats))
 
         self.polling_engine.on_live_start = on_live_start
@@ -142,14 +141,14 @@ class BotOrchestrator:
             log.info("LIVE END detected")
             await self.final_summary_engine.run({"end": True})
             self.live_summary_engine.stop()
-            # if you later add a dedicated live-end notification, call it here
+            # if you later want a dedicated live-end notification, add:
+            # asyncio.create_task(self.discord_bot.send_live_end_notification())
 
         self.live_mode_engine.on_live_end = on_live_end
 
         async def on_live_summary(stats):
             log.info(f"Live summary: {stats}")
             summary_text = str(stats)
-            # features.livesummary + channels.livesummary
             asyncio.create_task(self.discord_bot.send_live_summary(summary_text))
 
         self.live_summary_engine.on_summary = on_live_summary
@@ -157,14 +156,12 @@ class BotOrchestrator:
         async def on_final_summary(data):
             log.info(f"Final summary: {data}")
             summary_text = str(data)
-            # features.finalsummary + channels.finalsummary
             asyncio.create_task(self.discord_bot.send_final_summary(summary_text))
 
         self.final_summary_engine.on_final_summary = on_final_summary
 
         async def on_new_video(video_id):
             log.info(f"New video detected: {video_id}")
-            # features.video_notifications + channels.videos
             asyncio.create_task(self.discord_bot.send_new_video(video_id))
 
         self.video_upload_engine.on_new_video = on_new_video
@@ -172,7 +169,6 @@ class BotOrchestrator:
         async def on_daily_summary(summary):
             log.info(f"Daily summary: {summary}")
             summary_text = str(summary)
-            # features.daily_summary + channels.summary
             asyncio.create_task(self.discord_bot.send_daily_summary(summary_text))
 
         self.daily_summary_engine.on_daily_summary = on_daily_summary

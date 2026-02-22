@@ -7,7 +7,7 @@ from utils.logger import log
 
 class TikTokAPI:
     """
-    TikTok LIVE detector using TikTok's public web API.
+    TikTok LIVE + profile detector using TikTok's public web API.
     No API keys, no TikTokLive library, no rate limits.
     Works on Termux.
     """
@@ -94,11 +94,9 @@ class TikTokAPI:
         except KeyError:
             return {"is_live": False}
 
-        # LIVE detection
         is_live = user_data.get("isLive", False)
 
         if not is_live:
-            # Reset state
             self.is_live = False
             self.room_id = None
             self.live_title = None
@@ -107,13 +105,11 @@ class TikTokAPI:
 
             return {"is_live": False}
 
-        # Extract live metadata
         room_id = user_data.get("liveRoomId")
         title = user_data.get("liveTitle") or "TikTok LIVE"
         thumbnail = user_data.get("coverUrl")
         viewer_count = user_data.get("liveViewerCount", 0)
 
-        # Update internal state
         self.is_live = True
         self.room_id = room_id
         self.live_title = title
@@ -129,7 +125,7 @@ class TikTokAPI:
         }
 
     # ----------------------------------------------------------------------
-    # PUBLIC: Fetch profile stats (followers, likes)
+    # PUBLIC: Fetch profile stats (followers, likes, views)
     # ----------------------------------------------------------------------
     async def fetch_profile_stats(self):
         html = await self._fetch_profile_html()
@@ -151,13 +147,50 @@ class TikTokAPI:
             return {"followers": 0, "likes": 0, "views": 0}
 
     # ----------------------------------------------------------------------
+    # PUBLIC: Fetch latest video ID
+    # ----------------------------------------------------------------------
+    async def fetch_latest_video_id(self):
+        """
+        Uses TikTok's web API to fetch the latest video ID.
+        """
+        url = (
+            f"https://www.tiktok.com/api/post/item_list/"
+            f"?uniqueId={self.username}&count=1&cursor=0"
+        )
+        headers = {
+            "User-Agent": (
+                "Mozilla/5.0 (Linux; Android 10; Mobile) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/120.0.0.0 Mobile Safari/537.36"
+            ),
+            "Referer": f"https://www.tiktok.com/@{self.username}",
+        }
+
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(url, headers=headers) as resp:
+                    if resp.status != 200:
+                        log.error(f"[TikTokAPI] Failed to fetch videos: HTTP {resp.status}")
+                        return None
+                    data = await resp.json()
+        except Exception as e:
+            log.error(f"[TikTokAPI] Error fetching latest video: {e}")
+            return None
+
+        try:
+            items = data.get("itemList", [])
+            if not items:
+                return None
+            latest = items[0]
+            return latest.get("id")
+        except Exception as e:
+            log.error(f"[TikTokAPI] Error parsing latest video: {e}")
+            return None
+
+    # ----------------------------------------------------------------------
     # Dummy listener (kept for compatibility)
     # ----------------------------------------------------------------------
     async def start_live_listener(self):
-        """
-        TikTokLive replacement.
-        Does nothing, but keeps compatibility with your orchestrator.
-        """
         log.info("[TikTokAPI] start_live_listener() is not needed in Web-Polling mode.")
         while True:
             await asyncio.sleep(3600)
